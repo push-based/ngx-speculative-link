@@ -14,7 +14,11 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@ngx-speculative-link/ngx-speculative-link": [
+        "packages/ngx-speculative-link/src/index.ts"
+      ]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }

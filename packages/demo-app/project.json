@@ -31,10 +31,8 @@
         "styles": ["packages/demo-app/src/styles.scss"],
         "scripts": [],
         "server": "packages/demo-app/src/main.server.ts",
-        "prerender": true,
-        "ssr": {
-          "entry": "packages/demo-app/server.ts"
-        }
+        "prerender": false,
+        "ssr": false
       },
       "configurations": {
         "production": {
