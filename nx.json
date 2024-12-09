@@ -67,5 +67,6 @@
     "@nx/angular:component": {
       "style": "css"
     }
-  }
+  },
+  "defaultProject": "demo-app"
 }

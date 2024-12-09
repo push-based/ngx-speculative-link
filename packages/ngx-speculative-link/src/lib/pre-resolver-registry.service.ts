@@ -52,6 +52,7 @@ export class PreResolverRegistryService {
     route: RouteWithPreResolver;
     params: Params;
   }[] {
+    // @ts-ignore
     return;
   }
 
