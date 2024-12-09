@@ -1,6 +1,2 @@
-export { SpeculativeLink } from './lib/speculative-link.directive';
-export { SpeculativeLinkRegistry } from './lib/speculative-link-registry.service';
-export {
-  SpeculativeLinkPreloadingStrategy,
-  withSpeculativeLinkPreloading,
-} from './lib/preloading-strategy.provider';
+export { SpeculativeLinkDirective } from './lib-v1/speculative-link.directive';
+export { withSpeculativeLinkPreloading } from './lib-v1/provide';
