@@ -1,5 +1,6 @@
 import {
   computed,
+  DestroyRef,
   Directive,
   effect,
   ElementRef,
@@ -8,9 +9,22 @@ import {
   OnDestroy,
   PLATFORM_ID,
 } from '@angular/core';
-import { Router, UrlTree } from '@angular/router';
+import {
+  ActivatedRouteSnapshot,
+  ParamMap,
+  Params,
+  Router,
+  UrlTree,
+} from '@angular/router';
 import { DOCUMENT, isPlatformServer } from '@angular/common';
 import { SpeculativeLinkObserver } from './speculative-link-observer.service';
+import {
+  PreResolver,
+  PreResolverRegistryService,
+  RouteWithPreResolver,
+} from './pre-resolver-registry.service';
+import { filter, map, switchMap, tap } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 /**
  *
@@ -24,7 +38,7 @@ import { SpeculativeLinkObserver } from './speculative-link-observer.service';
   standalone: true,
   selector: '[speculativeLink]',
 })
-export class SpeculativeLinkDirective implements OnDestroy {
+export class SpeculativeLinkDirective {
   readonly ref = input.required<string>({ alias: 'speculativeLink' });
 
   readonly #router = inject(Router);
@@ -36,10 +50,50 @@ export class SpeculativeLinkDirective implements OnDestroy {
 
   readonly #observer = inject(SpeculativeLinkObserver);
 
+  readonly #preResolverRegistry = inject(PreResolverRegistryService);
+
+  constructor(destroyRef: DestroyRef) {
+    toObservable(this.urlTree)
+      .pipe(
+        tap(() => this.#preResolvers.clear()),
+        filter(Boolean),
+        switchMap((urlTree) => {
+          return this.#preResolverRegistry.matchingPreResolver(urlTree);
+        }),
+        tap((preResolver) => this.addPreResolver(preResolver)),
+        takeUntilDestroyed()
+      )
+      .subscribe();
+
+    destroyRef.onDestroy(() => {
+      this.#observer.unregister(this);
+    });
+
+    effect(() => {
+      const tree = this.urlTree();
+      this.#observer.unregister(this);
+      if (tree) {
+        this.#observer.register(this);
+      }
+      this.registeredTree = tree;
+      this.#preResolvers.clear();
+    });
+  }
+
+  readonly #preResolvers = new Set<PreResolver>();
+
+  addPreResolver(preResolver: PreResolver): void {
+    this.#preResolvers.add(preResolver);
+
+    preResolver.route.data.preResolve({
+      data: preResolver.route.data,
+      params: preResolver.params,
+    });
+  }
+
   registeredTree: UrlTree | null = null;
 
   urlTree = computed(() => {
-    // return null;
     if (isPlatformServer(this.#platformId)) {
       return null;
     }
@@ -56,17 +110,4 @@ export class SpeculativeLinkDirective implements OnDestroy {
     }
     return this.#router.parseUrl(url.pathname);
   });
-
-  #register = effect(() => {
-    this.#observer.unregister(this);
-    if (this.urlTree()) {
-      this.#observer.register(this);
-    }
-    this.registeredTree = this.urlTree();
-  });
-
-  ngOnDestroy(): void {
-    this.#observer.unregister(this);
-    this.#register.destroy();
-  }
 }
