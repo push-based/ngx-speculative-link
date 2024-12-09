@@ -11,7 +11,7 @@ import { SpeculativeLinkRegistry } from './speculative-link-registry.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 class TestHostComponent {
-  testRef = input<string | undefined>();
+  testRef = input<string>();
 }
 
 fdescribe('SpeculativeLink Directive', () => {

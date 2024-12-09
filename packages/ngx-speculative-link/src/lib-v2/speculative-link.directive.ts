@@ -1,16 +1,7 @@
-import {
-  computed,
-  Directive,
-  effect,
-  ElementRef,
-  inject,
-  input,
-  OnDestroy,
-} from '@angular/core';
-import { Router, UrlTree } from '@angular/router';
-
-import { SpeculativeLinkObserver } from './speculative-link-observer.service';
-import { DOCUMENT } from '@angular/common';
+import { computed, Directive, effect, ElementRef, inject, input, OnDestroy, PLATFORM_ID } from '@angular/core';
+import { Router, UrlTree } from "@angular/router";
+import { DOCUMENT, isPlatformServer } from '@angular/common';
+import { SpeculativeLinkObserver } from "./speculative-link-observer.service";
 
 /**
  *
@@ -20,50 +11,53 @@ import { DOCUMENT } from '@angular/common';
  *
  */
 
-@Directive({ selector: '[vnSpeculativeLink]', standalone: true })
+@Directive({
+  standalone: true,
+  // eslint-disable-next-line @angular-eslint/directive-selector
+  selector: '[speculativeLink]'
+})
 export class SpeculativeLinkDirective implements OnDestroy {
-  path = input.required<string>({ alias: 'vnSpeculativeLink' });
-  #document = inject(DOCUMENT);
+    readonly href = input.required<string>({ alias: 'speculativeLink' });
 
-  readonly #router = inject(Router);
+    readonly #router = inject(Router);
+    readonly #document = inject(DOCUMENT);
+    readonly #platformId = inject(PLATFORM_ID);
 
-  readonly #observer = inject(SpeculativeLinkObserver);
+    public readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
-  registeredTree: UrlTree | null = null;
+    readonly #observer = inject(SpeculativeLinkObserver);
 
-  urlTree = computed(() => {
-    const path = this.path();
+    registeredTree: UrlTree | null = null;
 
-    if (!path) {
-      return null;
+    urlTree = computed(() => {
+      // return null;
+      if (isPlatformServer(this.#platformId)) {
+        return null;
+      }
+      const href = this.href();
+      if (href === null) {
+            return null;
+        }
+        if (!href.includes('http')) {
+            return this.#router.parseUrl(href);
+        }
+        const url = new URL(href);
+        if (this.#document.location.hostname !== url.hostname) {
+            return null;
+        }
+        return this.#router.parseUrl(url.pathname);
+    });
+
+    #register = effect(() => {
+        this.#observer.unregister(this);
+        if (this.urlTree()) {
+            this.#observer.register(this);
+        }
+        this.registeredTree = this.urlTree();
+    });
+
+    ngOnDestroy(): void {
+        this.#observer.unregister(this);
+        this.#register.destroy();
     }
-
-    return this.parseUrl(path);
-  });
-
-  private parseUrl(path: string): UrlTree | null {
-    if (!path.includes('http')) {
-      return this.#router.parseUrl(path);
-    }
-    const url = new URL(path);
-    if (this.#document.location.hostname !== url.hostname) {
-      return null;
-    }
-    return this.#router.parseUrl(url.pathname);
-  }
-
-  element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
-
-  #register = effect(() => {
-    this.#observer.unregister(this);
-    if (this.urlTree()) {
-      this.#observer.register(this);
-    }
-    this.registeredTree = this.urlTree();
-  });
-
-  ngOnDestroy() {
-    this.#observer.unregister(this);
-    this.#register.destroy();
-  }
 }
