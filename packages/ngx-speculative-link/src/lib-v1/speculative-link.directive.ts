@@ -6,24 +6,16 @@ import {
   ElementRef,
   inject,
   input,
-  OnDestroy,
   PLATFORM_ID,
 } from '@angular/core';
-import {
-  ActivatedRouteSnapshot,
-  ParamMap,
-  Params,
-  Router,
-  UrlTree,
-} from '@angular/router';
+import { Router, UrlTree } from '@angular/router';
 import { DOCUMENT, isPlatformServer } from '@angular/common';
 import { SpeculativeLinkObserver } from './speculative-link-observer.service';
 import {
   PreResolver,
   PreResolverRegistryService,
-  RouteWithPreResolver,
 } from './pre-resolver-registry.service';
-import { filter, map, switchMap, tap } from 'rxjs';
+import { filter, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
 /**

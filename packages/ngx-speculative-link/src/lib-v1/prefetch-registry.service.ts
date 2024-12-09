@@ -1,31 +1,18 @@
-import {
-  inject,
-  Injectable,
-  Injector,
-  NgZone,
-  runInInjectionContext,
-} from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import {
   Params,
   PRIMARY_OUTLET,
   Route,
   Router,
   Routes,
-  UrlMatchResult,
   UrlSegment,
   UrlSegmentGroup,
   UrlTree,
 } from '@angular/router';
 
-import { remove, uniqBy } from 'lodash-es';
+import { remove } from 'lodash-es';
 
-import {
-  findPathDetails,
-  getPreResolveRoutes,
-  PathDetails,
-  PATTERN_ALIAS,
-} from './util';
-import schedule from './schedule';
+import { findPathDetails, PathDetails, PATTERN_ALIAS } from './util';
 import type { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-speculative-link';
 
 @Injectable({ providedIn: 'root' })
