@@ -32,7 +32,7 @@ type UrlSegmentWithRoute = UrlSegment & { route: Route };
 type TreeWithRoutes = UrlTree & { matchers: Routes };
 
 @Injectable({ providedIn: 'root' })
-export class PreResolverRegistryService {
+export class PreResolverRegistry {
   readonly #router = inject(Router);
   readonly #loaded$ = new ReplaySubject<RouteWithPreResolver>();
   readonly loadedPreResolvers$ = this.#loaded$.asObservable();

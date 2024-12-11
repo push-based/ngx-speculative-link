@@ -13,7 +13,7 @@ import { DOCUMENT, isPlatformServer } from '@angular/common';
 import { SpeculativeLinkObserver } from './speculative-link-observer.service';
 import {
   PreResolver,
-  PreResolverRegistryService,
+  PreResolverRegistry,
 } from './pre-resolver-registry.service';
 import { filter, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
@@ -40,7 +40,7 @@ export class SpeculativeLink {
   public readonly element: HTMLElement = inject(ElementRef).nativeElement;
 
   readonly #observer = inject(SpeculativeLinkObserver);
-  readonly #preResolverRegistry = inject(PreResolverRegistryService);
+  readonly #preResolverRegistry = inject(PreResolverRegistry);
 
   constructor(destroyRef: DestroyRef) {
     toObservable(this.urlTree)
