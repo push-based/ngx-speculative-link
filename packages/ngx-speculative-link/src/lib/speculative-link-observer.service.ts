@@ -2,6 +2,7 @@ import { inject, Injectable, NgZone } from '@angular/core';
 import type { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
 import { PrefetchRegistry } from './prefetch-registry.service';
 import { RouterPreloader } from '@angular/router';
+import schedule from './schedule';
 
 @Injectable({ providedIn: 'root' })
 export class SpeculativeLinkObserver {
@@ -15,12 +16,11 @@ export class SpeculativeLinkObserver {
         if (entry.isIntersecting) {
           this.#linkRegistry.intersectingElements.add(target);
 
-          requestIdleCallback(() => target.onEnterViewport());
-        } else {
-          if (this.#linkRegistry.intersectingElements.has(target)) {
-            this.#linkRegistry.intersectingElements.delete(target);
-            requestIdleCallback(() => target.onExitViewport());
-          }
+          schedule(() => target.onEnterViewport());
+        } else if (this.#linkRegistry.intersectingElements.has(target)) {
+          this.#linkRegistry.intersectingElements.delete(target);
+
+          schedule(() => target.onExitViewport());
         }
       });
     },
