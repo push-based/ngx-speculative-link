@@ -8,7 +8,7 @@ import {
   input,
   PLATFORM_ID,
 } from '@angular/core';
-import { Router, UrlTree } from '@angular/router';
+import { Router, RouterPreloader, UrlTree } from '@angular/router';
 import { DOCUMENT, isPlatformServer } from '@angular/common';
 import { SpeculativeLinkObserver } from './speculative-link-observer.service';
 import {
@@ -36,6 +36,7 @@ export class SpeculativeLinkDirective {
   readonly #router = inject(Router);
   readonly #document = inject(DOCUMENT);
   readonly #platformId = inject(PLATFORM_ID);
+  readonly #loader = inject(RouterPreloader);
 
   public readonly element =
     inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
@@ -102,4 +103,19 @@ export class SpeculativeLinkDirective {
     }
     return this.#router.parseUrl(url.pathname);
   });
+
+  onEnterViewport() {
+    console.log('On Enter Viewport');
+    this.#loader.preload().subscribe(() => void 0);
+
+    this.#preResolvers.forEach((preResolver) => {
+      preResolver.route.data.preResolve({
+        data: preResolver.route.data,
+        params: preResolver.params,
+      });
+    });
+  }
+  onExitViewport() {
+    console.log('On Exit Viewport');
+  }
 }

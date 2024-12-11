@@ -10,8 +10,6 @@ import {
   UrlTree,
 } from '@angular/router';
 
-import { remove } from 'lodash-es';
-
 import { findPathDetails, PathDetails, PATTERN_ALIAS } from './util';
 import type { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-speculative-link';
 
@@ -19,29 +17,24 @@ import type { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-specula
 export class PrefetchRegistry {
   readonly #router = inject(Router);
 
-  readonly #trees: UrlTree[] = [];
-
-  elementLink = new Map<Element, SpeculativeLinkDirective>();
-
-  add(tree: UrlTree) {
-    this.#trees.push(tree);
-    // TODO add logic to add preResolvers to link when registered
-  }
-
-  has(tree: UrlTree) {
-    return this.#trees.some((t) => t === tree);
-  }
-
-  remove(tree: UrlTree) {
-    remove(this.#trees, (registeredTree) => registeredTree === tree);
-  }
+  readonly registeredElements = new WeakMap<
+    Element,
+    SpeculativeLinkDirective
+  >();
+  readonly intersectingElements = new Set<SpeculativeLinkDirective>();
 
   shouldPrefetch(route: Route) {
-    if (this.#trees.length === 0) return false; // Do not check if in prefetch trees if is empty
+    if (this.intersectingElements.size === 0) return false; // Do not check if in prefetch trees if is empty
     const { url, matcherRoutes } = findPathDetails(this.#router.config, route);
     const tree = this.#router.parseUrl(url);
     (<TreeWithRoutes>tree)['matchers'] = matcherRoutes;
-    return this.#trees.some(containsTree.bind(null, tree));
+    for (const link of this.intersectingElements) {
+      const urlTree = link.urlTree();
+      if (urlTree && containsTree(tree, urlTree)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 
