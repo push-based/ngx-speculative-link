@@ -1,78 +1,128 @@
 import {
   computed,
+  DestroyRef,
   Directive,
   effect,
   ElementRef,
   inject,
   input,
-  OnDestroy,
+  NgZone,
+  PLATFORM_ID,
+  runInInjectionContext,
 } from '@angular/core';
-import { SpeculativeLinkRegistry } from './speculative-link-registry.service';
-import { RouterPreloader } from '@angular/router';
-import { RouteWithPreResolver } from './models';
+import { Router, RouterPreloader } from '@angular/router';
+import { DOCUMENT, isPlatformServer } from '@angular/common';
+import { SpeculativeLinkObserver } from './speculative-link-observer.service';
+import {
+  PreResolver,
+  PreResolverRegistry,
+} from './pre-resolver-registry.service';
+import { filter, switchMap, tap } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import schedule from './schedule';
+
+/**
+ *
+ * Inspired by the [Speculation Rules API]{@link https://developer.mozilla.org/en-US/docs/Web/API/Speculation_Rules_API}
+ *
+ * @whatItDoes When the link is observed in the viewport it will preload its route and execute its preResolvers.
+ *
+ */
 
 @Directive({
-  selector: '[speculativeLink]',
   standalone: true,
+  selector: '[speculativeLink]',
 })
-export class SpeculativeLink implements OnDestroy {
-  readonly ref = input(null, {
-    alias: 'speculativeLink',
-    transform: this.parseRef,
-  });
+export class SpeculativeLink {
+  readonly ref = input.required<string>({ alias: 'speculativeLink' });
 
-  #loader = inject(RouterPreloader);
+  readonly #router = inject(Router);
+  readonly #ngZone = inject(NgZone);
+  readonly #document = inject(DOCUMENT);
+  readonly #platformId = inject(PLATFORM_ID);
+  readonly #loader = inject(RouterPreloader);
+  public readonly element: HTMLElement = inject(ElementRef).nativeElement;
 
-  readonly registry = inject(SpeculativeLinkRegistry);
+  readonly #observer = inject(SpeculativeLinkObserver);
+  readonly #preResolverRegistry = inject(PreResolverRegistry);
 
-  readonly path = computed(() => {
-    // @TODO this should have an external service with is a parser
-    return this.parseRef(this.ref());
-  });
+  constructor(destroyRef: DestroyRef) {
+    toObservable(this.urlTree)
+      .pipe(
+        tap(() => this.#preResolvers.clear()),
+        filter(Boolean),
+        switchMap((urlTree) => {
+          return this.#preResolverRegistry.matchingPreResolver(urlTree);
+        }),
+        tap((preResolver) => this.#addPreResolver(preResolver)),
+        takeUntilDestroyed()
+      )
+      .subscribe();
 
-  readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    destroyRef.onDestroy(() => {
+      this.#observer.unregister(this);
+    });
 
-  parseRef(ref: string | null): string | null {
-    if (ref === undefined) {
-      return null;
-    }
-
-    return ref;
-  }
-
-  constructor() {
     effect(() => {
-      const path = this.path();
+      const tree = this.urlTree();
 
-      if (path === null) {
-        return this.registry.unregister(this);
+      if (!tree) {
+        this.#observer.unregister(this);
       }
 
-      return this.registry.register(this);
+      return this.#observer.register(this);
     });
   }
 
-  ngOnDestroy() {
-    this.registry.unregister(this);
-  }
-
-  preResolverRoutes = new Set<RouteWithPreResolver>();
-  onRegisteredPreResolver(route: RouteWithPreResolver) {
-    this.preResolverRoutes.add(route);
-  }
+  readonly #preResolvers = new Set<PreResolver>();
 
   onEnterViewport() {
-    console.log('onEnterViewport');
+    console.log('On Enter Viewport');
+    this.#loader.preload().subscribe(() => void 0);
 
-    this.#loader.preload();
-    this.preResolverRoutes.forEach((route: RouteWithPreResolver) => {});
-    // @TODO
-    // Should trigger route preloading
+    this.#preResolvers.forEach((preResolver) => {
+      this.#executePreResolver(preResolver);
+    });
   }
 
   onExitViewport() {
-    console.trace('onExitViewport');
-    // @TODO
-    // Should trigger preResolver onExitViewport
+    console.log('On Exit Viewport');
+  }
+
+  urlTree = computed(() => {
+    if (isPlatformServer(this.#platformId)) {
+      return null;
+    }
+    const href = this.ref();
+    if (href === null) {
+      return null;
+    }
+    if (!href.includes('http')) {
+      return this.#router.parseUrl(href);
+    }
+    const url = new URL(href);
+    if (this.#document.location.hostname !== url.hostname) {
+      return null;
+    }
+    return this.#router.parseUrl(url.pathname);
+  });
+
+  #addPreResolver(preResolver: PreResolver): void {
+    this.#preResolvers.add(preResolver);
+    this.#executePreResolver(preResolver);
+  }
+
+  #executePreResolver(preResolver: PreResolver): void {
+    console.log('PreResolver', preResolver);
+    schedule(() => {
+      runInInjectionContext(preResolver.injector, () => {
+        this.#ngZone.run(() => {
+          preResolver.route.data.preResolve({
+            data: preResolver.route.data,
+            params: preResolver.params,
+          });
+        });
+      });
+    });
   }
 }

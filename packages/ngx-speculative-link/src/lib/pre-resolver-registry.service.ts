@@ -1,8 +1,10 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, Injector } from '@angular/core';
 import {
+  Data,
   Params,
   PRIMARY_OUTLET,
   Route,
+  RouteConfigLoadEnd,
   Router,
   Routes,
   UrlMatchResult,
@@ -10,33 +12,69 @@ import {
   UrlSegmentGroup,
   UrlTree,
 } from '@angular/router';
-import { RouteWithPreResolver } from './models';
-import { SpeculativeLinkRegistry } from '@ngx-speculative-link/ngx-speculative-link';
-import {
-  extendTreeWithMatcherRoutes,
-  findPathDetails,
-  PATTERN_ALIAS,
-} from './matcher.utils';
+import { filter, map, Observable, ReplaySubject, tap } from 'rxjs';
+import schedule from './schedule';
+import { findPathDetails, PATTERN_ALIAS } from './util';
+
+export type PreResolver = {
+  route: RouteWithPreResolver;
+  params: Params;
+  injector: Injector;
+};
+
+export type RouteWithPreResolver = Route & {
+  data: {
+    preResolve: (route: { data: Data; params: Params }) => void;
+  };
+  _injector?: Injector;
+};
 
 type UrlSegmentWithRoute = UrlSegment & { route: Route };
-type TreeWithRoutes = UrlTree & { matchers: Routes };
 
 @Injectable({ providedIn: 'root' })
-export class PreResolverRegistryService {
-  #router = inject(Router);
-  #speculativeLinkRegistry = inject(SpeculativeLinkRegistry);
-  #routesWithPreResolvers = new Set<RouteWithPreResolver>();
+export class PreResolverRegistry {
+  readonly #router = inject(Router);
+  readonly #injector = inject(Injector);
 
-  registerPreResolverRoutes(route: Route) {
+  readonly #loaded$ = new ReplaySubject<RouteWithPreResolver>();
+  readonly loadedPreResolvers$ = this.#loaded$.asObservable();
+  #preResolverRoutes = new Set<RouteWithPreResolver>();
+
+  constructor() {
+    this.#router.events
+      .pipe(
+        filter(
+          (event): event is RouteConfigLoadEnd =>
+            event instanceof RouteConfigLoadEnd
+        ),
+        tap(({ route }) => {
+          /**
+           * The idleCallback is necessary because routes have loaded but not yet processed, the fields we
+           * access to load the preResolvers and the required data like _loadRoutes are only present after
+           * it's done processing.
+           */
+          schedule(() => {
+            // Check if preResolver already loaded to prevent over execution due to scheduling
+            if (!this.#preResolverRoutes.has(route as any)) {
+              this.#registerPreResolverRoutes(route);
+            }
+          });
+        })
+      )
+      .subscribe();
+  }
+
+  #registerPreResolverRoutes(route: Route): void {
     if (this.#routeHasPreResolver(route)) {
-      this.#routesWithPreResolvers.add(route);
+      this.#preResolverRoutes.add(route);
+      this.#loaded$.next(route);
     }
 
-    const loadedRoutes = (<any>route)['_loadedRoutes'];
-    const children: Routes = route.children ?? loadedRoutes;
+    // @TODO note about missing type...
+    const children: Routes = route.children ?? (<any>route)['_loadedRoutes'];
     if (children?.length) {
       children.forEach((child) => {
-        this.registerPreResolverRoutes(child);
+        this.#registerPreResolverRoutes(child);
       });
     }
   }
@@ -48,12 +86,32 @@ export class PreResolverRegistryService {
     );
   }
 
-  getPreResolvers(tree: UrlTree): {
-    route: RouteWithPreResolver;
-    params: Params;
-  }[] {
-    // @ts-ignore
-    return;
+  matchingPreResolver(tree: UrlTree): Observable<PreResolver> {
+    return this.loadedPreResolvers$.pipe(
+      map((route: RouteWithPreResolver) => ({
+        route,
+        params: this.#getMatches(route, tree),
+        injector: route['_injector'] ?? this.#injector,
+      })),
+      filter((preResolver): preResolver is PreResolver => {
+        return preResolver.params !== null;
+      })
+    );
+  }
+
+  #getMatches(route: Route, tree: UrlTree): Params | null {
+    const routeTree = this.#getExtendedTree(route);
+    const matchingSegments = matchingSegmentGroups(
+      tree.root,
+      routeTree.root,
+      routeTree.root.segments
+    );
+
+    if (matchingSegments) {
+      return matchResultToParams(matchingSegments);
+    }
+
+    return null;
   }
 
   #getExtendedTree(route: Route) {
@@ -63,6 +121,15 @@ export class PreResolverRegistryService {
       matcherRoutes
     );
   }
+}
+
+function matchResultToParams(matches: boolean | UrlMatchResult[]): Params {
+  if (typeof matches === 'boolean') return {};
+  return Object.fromEntries(
+    matches
+      .flatMap(({ posParams }) => Object.entries(posParams || {}))
+      .map(([key, value]) => [key, value.path])
+  );
 }
 
 function matchingSegmentGroups(
@@ -115,7 +182,7 @@ function matchingSegmentGroups(
   for (const c in containee.children) {
     if (!container.children[c]) break;
     const matchedChildren = matchingSegmentGroups(
-      container.children[c],
+      container.children[c]!,
       containee.children[c]!,
       containee.children[c]!.segments
     );
@@ -150,6 +217,14 @@ function matchesSegmentGroup(
         currentItem.path.startsWith(':') ||
         registeredItem.path.startsWith(':')
       ) {
+        const urlMatch: UrlMatchResult = {
+          consumed: [registeredItem],
+          posParams: { [currentItem.path.replace(':', '')]: registeredItem },
+        };
+        if (typeof accumulator === 'boolean') {
+          return [urlMatch];
+        }
+        accumulator.push(urlMatch);
         return accumulator;
       }
 
@@ -169,4 +244,31 @@ function matchesSegmentGroup(
     },
     true
   );
+}
+
+function extendTreeWithMatcherRoutes(tree: UrlTree, matcherRoutes: Routes) {
+  if (!matcherRoutes.length) return tree;
+
+  extendUrlSegmentGroup(tree.root, matcherRoutes);
+
+  return tree;
+}
+
+function extendUrlSegmentGroup(
+  group: UrlSegmentGroup,
+  matcherRoutes: Routes,
+  currentMatcher = 0
+) {
+  for (const segment of group.segments) {
+    if (segment.path === PATTERN_ALIAS) {
+      (<UrlSegment & { route: Route | undefined }>segment)['route'] =
+        matcherRoutes[currentMatcher];
+      currentMatcher++;
+    }
+  }
+  if (group.hasChildren()) {
+    Object.values(group.children).forEach((child) =>
+      extendUrlSegmentGroup(child, matcherRoutes, currentMatcher)
+    );
+  }
 }
