@@ -37,12 +37,9 @@ export class SpeculativeLink {
   readonly #document = inject(DOCUMENT);
   readonly #platformId = inject(PLATFORM_ID);
   readonly #loader = inject(RouterPreloader);
-
-  public readonly element =
-    inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  public readonly element: HTMLElement = inject(ElementRef).nativeElement;
 
   readonly #observer = inject(SpeculativeLinkObserver);
-
   readonly #preResolverRegistry = inject(PreResolverRegistryService);
 
   constructor(destroyRef: DestroyRef) {
@@ -53,7 +50,7 @@ export class SpeculativeLink {
         switchMap((urlTree) => {
           return this.#preResolverRegistry.matchingPreResolver(urlTree);
         }),
-        tap((preResolver) => this.addPreResolver(preResolver)),
+        tap((preResolver) => this.#addPreResolver(preResolver)),
         takeUntilDestroyed()
       )
       .subscribe();
@@ -75,13 +72,17 @@ export class SpeculativeLink {
 
   readonly #preResolvers = new Set<PreResolver>();
 
-  addPreResolver(preResolver: PreResolver): void {
-    this.#preResolvers.add(preResolver);
+  onEnterViewport() {
+    console.log('On Enter Viewport');
+    this.#loader.preload().subscribe(() => void 0);
 
-    preResolver.route.data.preResolve({
-      data: preResolver.route.data,
-      params: preResolver.params,
+    this.#preResolvers.forEach((preResolver) => {
+      this.#executePreResolver(preResolver);
     });
+  }
+
+  onExitViewport() {
+    console.log('On Exit Viewport');
   }
 
   registeredTree: UrlTree | null = null;
@@ -104,18 +105,15 @@ export class SpeculativeLink {
     return this.#router.parseUrl(url.pathname);
   });
 
-  onEnterViewport() {
-    console.log('On Enter Viewport');
-    this.#loader.preload().subscribe(() => void 0);
-
-    this.#preResolvers.forEach((preResolver) => {
-      preResolver.route.data.preResolve({
-        data: preResolver.route.data,
-        params: preResolver.params,
-      });
-    });
+  #addPreResolver(preResolver: PreResolver): void {
+    this.#preResolvers.add(preResolver);
+    this.#executePreResolver(preResolver);
   }
-  onExitViewport() {
-    console.log('On Exit Viewport');
+
+  #executePreResolver(preResolver: PreResolver): void {
+    preResolver.route.data.preResolve({
+      data: preResolver.route.data,
+      params: preResolver.params,
+    });
   }
 }
