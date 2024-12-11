@@ -1,4 +1,4 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, Injector } from '@angular/core';
 import {
   Data,
   Params,
@@ -20,20 +20,23 @@ import { PATTERN_ALIAS } from '../lib/matcher.utils';
 export type PreResolver = {
   route: RouteWithPreResolver;
   params: Params;
+  injector: Injector;
 };
 
 export type RouteWithPreResolver = Route & {
   data: {
     preResolve: (route: { data: Data; params: Params }) => void;
   };
+  _injector?: Injector;
 };
 
 type UrlSegmentWithRoute = UrlSegment & { route: Route };
-type TreeWithRoutes = UrlTree & { matchers: Routes };
 
 @Injectable({ providedIn: 'root' })
 export class PreResolverRegistry {
   readonly #router = inject(Router);
+  readonly #injector = inject(Injector);
+
   readonly #loaded$ = new ReplaySubject<RouteWithPreResolver>();
   readonly loadedPreResolvers$ = this.#loaded$.asObservable();
   #preResolverRoutes = new Set<RouteWithPreResolver>();
@@ -88,7 +91,8 @@ export class PreResolverRegistry {
     return this.loadedPreResolvers$.pipe(
       map((route: RouteWithPreResolver) => ({
         route,
-        params: this.getMatches(route, tree),
+        params: this.#getMatches(route, tree),
+        injector: route['_injector'] ?? this.#injector,
       })),
       filter((preResolver): preResolver is PreResolver => {
         return preResolver.params !== null;
@@ -96,7 +100,7 @@ export class PreResolverRegistry {
     );
   }
 
-  getMatches(route: Route, tree: UrlTree): Params | null {
+  #getMatches(route: Route, tree: UrlTree): Params | null {
     const routeTree = this.#getExtendedTree(route);
     const matchingSegments = matchingSegmentGroups(
       tree.root,

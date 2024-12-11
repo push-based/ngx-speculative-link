@@ -6,9 +6,11 @@ import {
   ElementRef,
   inject,
   input,
+  NgZone,
   PLATFORM_ID,
+  runInInjectionContext,
 } from '@angular/core';
-import { Router, RouterPreloader, UrlTree } from '@angular/router';
+import { Router, RouterPreloader } from '@angular/router';
 import { DOCUMENT, isPlatformServer } from '@angular/common';
 import { SpeculativeLinkObserver } from './speculative-link-observer.service';
 import {
@@ -17,6 +19,7 @@ import {
 } from './pre-resolver-registry.service';
 import { filter, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import schedule from './schedule';
 
 /**
  *
@@ -34,6 +37,7 @@ export class SpeculativeLink {
   readonly ref = input.required<string>({ alias: 'speculativeLink' });
 
   readonly #router = inject(Router);
+  readonly #ngZone = inject(NgZone);
   readonly #document = inject(DOCUMENT);
   readonly #platformId = inject(PLATFORM_ID);
   readonly #loader = inject(RouterPreloader);
@@ -61,12 +65,12 @@ export class SpeculativeLink {
 
     effect(() => {
       const tree = this.urlTree();
-      this.#observer.unregister(this);
-      if (tree) {
-        this.#observer.register(this);
+
+      if (!tree) {
+        this.#observer.unregister(this);
       }
-      this.registeredTree = tree;
-      this.#preResolvers.clear();
+
+      return this.#observer.register(this);
     });
   }
 
@@ -84,8 +88,6 @@ export class SpeculativeLink {
   onExitViewport() {
     console.log('On Exit Viewport');
   }
-
-  registeredTree: UrlTree | null = null;
 
   urlTree = computed(() => {
     if (isPlatformServer(this.#platformId)) {
@@ -111,9 +113,16 @@ export class SpeculativeLink {
   }
 
   #executePreResolver(preResolver: PreResolver): void {
-    preResolver.route.data.preResolve({
-      data: preResolver.route.data,
-      params: preResolver.params,
+    console.log('PreResolver', preResolver);
+    schedule(() => {
+      runInInjectionContext(preResolver.injector, () => {
+        this.#ngZone.run(() => {
+          preResolver.route.data.preResolve({
+            data: preResolver.route.data,
+            params: preResolver.params,
+          });
+        });
+      });
     });
   }
 }
