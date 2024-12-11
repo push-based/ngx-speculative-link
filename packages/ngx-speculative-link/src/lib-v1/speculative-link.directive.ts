@@ -30,7 +30,7 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
   standalone: true,
   selector: '[speculativeLink]',
 })
-export class SpeculativeLinkDirective {
+export class SpeculativeLink {
   readonly ref = input.required<string>({ alias: 'speculativeLink' });
 
   readonly #router = inject(Router);

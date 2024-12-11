@@ -11,17 +11,14 @@ import {
 } from '@angular/router';
 
 import { findPathDetails, PathDetails, PATTERN_ALIAS } from './util';
-import type { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-speculative-link';
+import type { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
 
 @Injectable({ providedIn: 'root' })
 export class PrefetchRegistry {
   readonly #router = inject(Router);
 
-  readonly registeredElements = new WeakMap<
-    Element,
-    SpeculativeLinkDirective
-  >();
-  readonly intersectingElements = new Set<SpeculativeLinkDirective>();
+  readonly registeredElements = new WeakMap<Element, SpeculativeLink>();
+  readonly intersectingElements = new Set<SpeculativeLink>();
 
   shouldPrefetch(route: Route) {
     if (this.intersectingElements.size === 0) return false; // Do not check if in prefetch trees if is empty

@@ -1,5 +1,5 @@
 import { inject, Injectable, NgZone } from '@angular/core';
-import type { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-speculative-link';
+import type { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
 import { PrefetchRegistry } from './prefetch-registry.service';
 import { RouterPreloader } from '@angular/router';
 
@@ -29,7 +29,7 @@ export class SpeculativeLinkObserver {
     }
   );
 
-  register(el: SpeculativeLinkDirective): void {
+  register(el: SpeculativeLink): void {
     if (!this.#linkRegistry.registeredElements.has(el.element)) {
       this.#linkRegistry.registeredElements.set(el.element, el);
 
@@ -41,7 +41,7 @@ export class SpeculativeLinkObserver {
     }
   }
 
-  unregister(el: SpeculativeLinkDirective): void {
+  unregister(el: SpeculativeLink): void {
     this.#linkRegistry.registeredElements.delete(el.element);
 
     if (this.#linkRegistry.intersectingElements.has(el)) {

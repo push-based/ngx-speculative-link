@@ -12,7 +12,7 @@ import { MatList, MatListItem, MatNavList } from '@angular/material/list';
 import { MatIcon } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
-import { SpeculativeLinkDirective } from '@ngx-speculative-link/ngx-speculative-link';
+import { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
 import { RouterLink } from '@angular/router';
 
 @Component({
@@ -87,7 +87,7 @@ import { RouterLink } from '@angular/router';
     MatListItem,
     MatIconButton,
     RouterLink,
-    SpeculativeLinkDirective,
+    SpeculativeLink,
   ],
 })
 export class ShellComponent {
