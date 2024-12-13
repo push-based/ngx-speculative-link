@@ -1,13 +1,12 @@
 import { inject, Injectable, NgZone } from '@angular/core';
 import type { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
-import { PrefetchRegistry } from './prefetch-registry.service';
-import { RouterPreloader } from '@angular/router';
+import { SpeculativeLinkRegistry } from './speculative-link-registry.service';
 import schedule from './schedule';
 
 @Injectable({ providedIn: 'root' })
 export class SpeculativeLinkObserver {
   readonly #ngZone = inject(NgZone);
-  readonly #linkRegistry = inject(PrefetchRegistry);
+  readonly #linkRegistry = inject(SpeculativeLinkRegistry);
 
   readonly observer = new IntersectionObserver(
     (entries) => {

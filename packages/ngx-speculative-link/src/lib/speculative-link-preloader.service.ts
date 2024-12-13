@@ -3,12 +3,12 @@ import { PreloadingStrategy, Route } from '@angular/router';
 
 import { EMPTY, Observable } from 'rxjs';
 
-import { PrefetchRegistry } from './prefetch-registry.service';
+import { SpeculativeLinkRegistry } from './speculative-link-registry.service';
 
 @Injectable({ providedIn: 'root' })
 export class SpeculativeLinkPreloader implements PreloadingStrategy {
   #loading = new Set<Route>();
-  #registry = inject(PrefetchRegistry);
+  #registry = inject(SpeculativeLinkRegistry);
 
   preload(route: Route, load: () => Observable<void>): Observable<void> {
     if (this.#loading.has(route)) {

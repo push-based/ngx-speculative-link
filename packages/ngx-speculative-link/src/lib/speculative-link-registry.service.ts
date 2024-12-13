@@ -14,7 +14,7 @@ import { findPathDetails, PathDetails, PATTERN_ALIAS } from './util';
 import type { SpeculativeLink } from '@ngx-speculative-link/ngx-speculative-link';
 
 @Injectable({ providedIn: 'root' })
-export class PrefetchRegistry {
+export class SpeculativeLinkRegistry {
   readonly #router = inject(Router);
 
   readonly registeredElements = new WeakMap<Element, SpeculativeLink>();
